@@ -28,31 +28,83 @@ pub enum DickCommands {
     Grow,
     #[command(description = "top")]
     Top,
+    #[command(description = "set someone's length (admin)")]
+    Set,
 }
 
-pub async fn dick_cmd_handler(bot: Bot, msg: Message, cmd: DickCommands,
-                              repos: repo::Repositories, incr: Incrementor,
-                              config: config::AppConfig) -> HandlerResult {
+pub async fn dick_cmd_handler(
+    bot: Bot,
+    msg: Message,
+    cmd: DickCommands,
+    repos: repo::Repositories,
+    incr: Incrementor,
+    config: config::AppConfig
+) -> HandlerResult {
+
     let from = msg.from.as_ref().ok_or(anyhow!("unexpected absence of a FROM field"))?;
     let chat_id = msg.chat.id.into();
     let from_refs = FromRefs(from, &chat_id);
+
     match cmd {
         DickCommands::Grow => {
             metrics::CMD_GROW_COUNTER.chat.inc();
             let answer = grow_impl(&repos, incr, from_refs).await?;
-            reply_html(bot, &msg, answer)
+            reply_html(bot, &msg, answer).await?;
         },
+
         DickCommands::Top => {
             metrics::CMD_TOP_COUNTER.chat.inc();
             let top = top_impl(&repos, &config, from_refs, Page::first()).await?;
             let mut request = reply_html(bot, &msg, top.lines);
             if top.has_more_pages && config.features.top_unlimited {
-                let keyboard = ReplyMarkup::InlineKeyboard(build_pagination_keyboard(Page::first(), top.has_more_pages));
+                let keyboard = ReplyMarkup::InlineKeyboard(
+                    build_pagination_keyboard(Page::first(), top.has_more_pages)
+                );
                 request.reply_markup.replace(keyboard);
             }
-            request
+            request.await?;
+        },
+
+        DickCommands::Set => {
+            // 🔒 CHANGE THIS TO YOUR TELEGRAM ID
+            if from.id.0 != 123456789 {
+                return Ok(());
+            }
+
+            // must reply to someone
+            let reply = match msg.reply_to_message() {
+                Some(r) => r,
+                None => {
+                    reply_html(bot, &msg, "Reply to someone with /set <number>").await?;
+                    return Ok(());
+                }
+            };
+
+            let target = match reply.from.as_ref() {
+                Some(u) => u,
+                None => msg.from.as_ref().ok_or(anyhow!("no user"))?,
+            };
+
+            // parse number
+            let text = msg.text().unwrap_or("");
+            let parts: Vec<&str> = text.split_whitespace().collect();
+
+            if parts.len() < 2 {
+                reply_html(bot, &msg, "Usage: /set <number>").await?;
+                return Ok(());
+            }
+
+            let value: i32 = parts[1].parse().unwrap_or(0);
+
+            // update DB
+            repos.dicks
+                .set_user_length(target.id.0 as i64, &chat_id, value)
+                .await?;
+
+            reply_html(bot, &msg, format!("Set {} to {}", target.first_name, value)).await?;
         }
-    }.await.context(format!("failed for {msg:?}"))?;
+    }
+
     Ok(())
 }
 

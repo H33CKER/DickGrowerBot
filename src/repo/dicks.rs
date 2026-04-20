@@ -201,4 +201,32 @@ impl Dicks {
             .context(format!("couldn't insert to DOD table for {chat_id_internal} and {user_id}"))?;
         Ok(())
     }
+    pub async fn set_user_length(
+        &self,
+        user_id: i64,
+        chat_id: &ChatIdPartiality,
+        value: i32
+    ) -> anyhow::Result<()> {
+
+        let internal_chat_id = self.chats
+            .upsert_chat(chat_id)
+            .await
+            .context(format!(
+                "couldn't resolve chat for set_user_length: {chat_id:?}"
+            ))?;
+
+        sqlx::query!(
+            "UPDATE dicks SET length = $1 WHERE uid = $2 AND chat_id = $3",
+            value,
+            user_id,
+            internal_chat_id
+        )
+        .execute(&self.pool)
+        .await
+        .context(format!(
+            "couldn't set length for user {user_id} in chat {internal_chat_id} to {value}"
+        ))?;
+
+        Ok(())
+    }
 }
