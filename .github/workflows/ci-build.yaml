@@ -17,8 +17,7 @@ jobs:
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
 
       - name: Set up Rust
-        uses: hecrj/setup-rust-action@v1
-      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
+        uses: dtolnay/rust-toolchain@1.75.0
 
       - name: Build
         run: cargo build --verbose
