@@ -46,13 +46,13 @@ impl CallbackResult {
         match self {
             CallbackResult::EditMessage(text, keyboard) => {
                 if let Some(message) = callback_query.message {
-                    let mut edit_req = bot.edit_message_text(message.chat().id, message.id(), text);
+                    let mut edit_req = bot.edit_message_text(message.chat.id, message.id, text);
                     edit_req.parse_mode.replace(Html);
                     edit_req.reply_markup = keyboard;
 
                     let edit_req_resp = edit_req.await;
                     if let Err(err) = edit_req_resp {
-                        log::error!("couldn't edit the message ({}:{}): {}", message.chat().id, message.id(), err);
+                        log::error!("couldn't edit the message ({}:{}): {}", message.chat.id, message.id, err);
                         Err(err)?;
                     }
                 } else if let Some(inline_message_id) = callback_query.inline_message_id {
@@ -163,7 +163,7 @@ pub mod checks {
     }
 
     pub async fn handle_not_group_chat(bot: Bot, msg: Message) -> HandlerResult {
-        let lang_code = LanguageCode::from_maybe_user(msg.from.as_ref());
+        let lang_code = LanguageCode::from_maybe_user(msg.from().as_ref());
         let answer = t!("errors.not_group_chat", locale = &lang_code);
         reply_html(bot, &msg, answer).await?;
         Ok(())
